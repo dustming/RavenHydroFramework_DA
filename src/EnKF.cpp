@@ -328,9 +328,16 @@ void CEnKFEnsemble::Initialize(const CModel* pModel,const optStruct &Options)
     {
       _aObsIndices[_nObs]=i;
       _nObs++;
-      for(int nn=_nTimeSteps-_window_size;nn<_nTimeSteps;nn++) {
+      for(int nn=_nTimeSteps-_window_size;nn<= _nTimeSteps;nn++) {
         obsval=pTSObs->GetSampledValue(nn);
-        if(obsval!=RAV_BLANK_DATA) { _nObsDatapoints++; }
+        if(obsval!=RAV_BLANK_DATA) { 
+            _nObsDatapoints++; 
+            if (Options.noisy) {
+              cout << "EnKF at Initialize(): The _nObsDatapoints: " << _nObsDatapoints
+                   << " avaiable for EnKF at time index nn = " << nn << "  is  "
+                   << obsval << endl;
+          }
+        }
       }
     }
   }
@@ -380,7 +387,7 @@ void CEnKFEnsemble::Initialize(const CModel* pModel,const optStruct &Options)
         if (_pObsPerturbations[p]->state==sv){pPerturb=_pObsPerturbations[p];}
       }
 
-      for(int nn=_nTimeSteps-_window_size;nn<_nTimeSteps;nn++)
+      for(int nn=_nTimeSteps-_window_size;nn<=_nTimeSteps;nn++)
       {
         obsval=pTSObs->GetSampledValue(nn);
         if(obsval!=RAV_BLANK_DATA) {
@@ -391,6 +398,12 @@ void CEnKFEnsemble::Initialize(const CModel* pModel,const optStruct &Options)
             else if (pPerturb->adj_type == ADJ_MULTIPLICATIVE){ _noise_matrix[e][j]=(eps*obsval)-obsval; }
           }
           _obs_matrix[e][j]=obsval+_noise_matrix[e][j];
+          if (Options.noisy) {
+            cout << "EnKF at Initialize(): _obs_matrix for ensemble  " << e
+                 << "  and observation j  " << j << "  the observation is  " << obsval
+                 << " noise is  " << _noise_matrix[e][j]
+                 << " observation matrix value is " << _obs_matrix[e][j] << endl;
+          }
           j++;
         }
       }
@@ -436,6 +449,14 @@ void CEnKFEnsemble::StartTimeStepOps(CModel* pModel,optStruct& Options,const tim
 void CEnKFEnsemble::CloseTimeStepOps(CModel* pModel,optStruct& Options,const time_struct& tt,const int e)
 {
   if (fabs(tt.model_time-Options.duration)<0.25*Options.timestep) { //t=t_end
+    if (Options.noisy) {
+       cout << "EnKF at CloseTimeStepOps(): Adding the state to state matrix "
+               "at tt.model_time "
+            << tt.model_time << " The duration is  " << Options.duration
+            << "  and the time step is  " << Options.timestep  
+            << " the current date is (day ending) tt.date_string " << tt.date_string
+            << endl;
+    }
     AddToStateMatrix(pModel,Options,e);
   }
 
@@ -450,11 +471,19 @@ void CEnKFEnsemble::CloseTimeStepOps(CModel* pModel,optStruct& Options,const tim
   for(int ii=0;ii<_nObs;ii++) { //messy that we have to go through whole loop like this
     const CTimeSeriesABC* pTSObs=pModel->GetObservedTS (_aObsIndices[ii]);
     const CTimeSeriesABC* pTSMod=pModel->GetSimulatedTS(_aObsIndices[ii]);
-    for(int nn=_nTimeSteps-_window_size;nn<_nTimeSteps;nn++) {
+    for(int nn=_nTimeSteps-_window_size;nn<=_nTimeSteps;nn++) {
       obsval=pTSObs->GetSampledValue(nn);
       if(obsval!=RAV_BLANK_DATA) {
         if(nn==curr_nn) {
           _output_matrix[e][j]=pTSMod->GetSampledValue(nn);
+          if (Options.noisy) {
+            cout << "EnKF at CloseTimeStepOps(): _output_matrix for ensemble  " << e
+                 << "  and observation j  " << j << "  the observation is "
+                 << obsval << " simulaiton is " << _output_matrix[e][j]
+                 << "  time index nn is " << nn << "  curr_nn is "<< curr_nn
+                 << " the current date is (day ending) tt. " << tt.date_string
+                 << endl;
+          }
           //cout<<"GRABBING OUTPUT ens: "<<e<<" nn="<<curr_nn<<" obs: "<<_output_matrix[e][j]<<" "<<obsval<<" duration "<<Options.duration<<endl;
           break;
         }
